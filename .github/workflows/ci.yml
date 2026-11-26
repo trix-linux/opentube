@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Byte-compile
+        run: python -m compileall -q server.py views.py db.py seed.py slugify.py
+
+      - name: Smoke test
+        run: |
+          python3 server.py --port 8123 &
+          server=$!
+          for i in $(seq 1 20); do
+            curl -fsS http://127.0.0.1:8123/ >/dev/null && break
+            sleep 0.5
+          done
+          curl -fsS http://127.0.0.1:8123/ | grep -q OpenTube
+          curl -fsS http://127.0.0.1:8123/upload | grep -q 'action="/upload"'
+          curl -fsS -o /dev/null -w '%{http_code}' http://127.0.0.1:8123/static/style.css | grep -q 200
+          kill "$server"
